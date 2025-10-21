@@ -4,6 +4,14 @@ self.addEventListener('push', async function (event) {
 
     const data = event.data.json();
 
+    console.log('=== WEB PUSH RECEIVED ===');
+    console.log('Полученные данные:', data);
+
+    // Выводим все параметры с названиями и значениями
+    console.log('--- Все параметры push-уведомления ---');
+    for (const [key, value] of Object.entries(data)) {
+        console.log(`Параметр: ${key} =`, value);
+
     // Обработка зашифрованных параметров
     const decryptedData = await processEncryptedParameters(data);
 
