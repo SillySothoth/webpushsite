@@ -2,7 +2,7 @@
 self.addEventListener('push', async function (event) {
     if (!event.data) return;
 
-    const data = event.data.json();
+    const data = event.data.text();
 
     console.log('=== WEB PUSH RECEIVED ===');
     console.log('Полученные данные:', data);
