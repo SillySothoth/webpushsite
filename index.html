@@ -131,6 +131,18 @@
             word-break: break-all;
             border: 1px solid #dee2e6;
         }
+
+        .copy-btn {
+            width: auto;
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-top: 5px;
+            background: #6c757d;
+        }
+
+            .copy-btn:hover {
+                background: #545b62;
+            }
     </style>
 </head>
 <body>
@@ -151,25 +163,116 @@
             <div class="data-item">
                 <div class="data-label">Endpoint:</div>
                 <div class="data-value" id="endpoint"></div>
+                <button class="copy-btn" onclick="copyToClipboard('endpoint')">Копировать</button>
             </div>
             <div class="data-item">
                 <div class="data-label">P256DH Key:</div>
                 <div class="data-value" id="p256dh"></div>
+                <button class="copy-btn" onclick="copyToClipboard('p256dh')">Копировать</button>
             </div>
             <div class="data-item">
                 <div class="data-label">Auth Key:</div>
                 <div class="data-value" id="auth"></div>
+                <button class="copy-btn" onclick="copyToClipboard('auth')">Копировать</button>
+            </div>
+            <div class="data-item">
+                <div class="data-label">Ключ шифрования:</div>
+                <div class="data-value" id="encryptionKey"></div>
+                <button class="copy-btn" onclick="copyToClipboard('encryptionKey')">Копировать</button>
             </div>
         </div>
     </div>
 
     <script>
+        // Глобальная переменная для хранения ключа шифрования
+        let encryptionKey = null;
+
         // Конвертация Base64 ключа в Uint8Array
         function urlBase64ToUint8Array(base64String) {
             const padding = '='.repeat((4 - base64String.length % 4) % 4);
             const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
             const rawData = atob(base64);
             return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+        }
+
+        // Генерация ключа шифрования
+        async function generateEncryptionKey() {
+            try {
+                const key = await crypto.subtle.generateKey(
+                    {
+                        name: "AES-GCM",
+                        length: 256
+                    },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+
+                // Экспортируем ключ в формате raw и конвертируем в base64
+                const exported = await crypto.subtle.exportKey("raw", key);
+                const exportedKeyBuffer = new Uint8Array(exported);
+                const base64Key = arrayBufferToBase64(exportedKeyBuffer);
+
+                // Сохраняем ключ в глобальной переменной и localStorage
+                encryptionKey = key;
+                localStorage.setItem('webpush_encryption_key', base64Key);
+
+                return base64Key;
+            } catch (error) {
+                console.error('Ошибка генерации ключа:', error);
+                throw error;
+            }
+        }
+
+        // Загрузка ключа из localStorage
+        async function loadEncryptionKey() {
+            try {
+                const base64Key = localStorage.getItem('webpush_encryption_key');
+                if (!base64Key) return null;
+
+                const keyBuffer = base64ToArrayBuffer(base64Key);
+                const key = await crypto.subtle.importKey(
+                    "raw",
+                    keyBuffer,
+                    {
+                        name: "AES-GCM",
+                        length: 256
+                    },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+
+                encryptionKey = key;
+                return base64Key;
+            } catch (error) {
+                console.error('Ошибка загрузки ключа:', error);
+                return null;
+            }
+        }
+
+        // Расшифровка данных
+        async function decryptData(encryptedDataBase64, ivBase64) {
+            if (!encryptionKey) {
+                throw new Error('Ключ шифрования не найден');
+            }
+
+            try {
+                const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
+                const iv = base64ToArrayBuffer(ivBase64);
+
+                const decrypted = await crypto.subtle.decrypt(
+                    {
+                        name: "AES-GCM",
+                        iv: iv
+                    },
+                    encryptionKey,
+                    encryptedData
+                );
+
+                return new TextDecoder().decode(decrypted);
+            } catch (error) {
+                console.error('Ошибка расшифровки:', error);
+                throw error;
+            }
         }
 
         // Основная функция подписки
@@ -212,6 +315,10 @@
                     return;
                 }
 
+                // Генерируем ключ шифрования
+                const encryptionKeyBase64 = await generateEncryptionKey();
+                console.log('Ключ шифрования сгенерирован:', encryptionKeyBase64);
+
                 // Создаем подписку
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
@@ -220,7 +327,7 @@
 
                 // Показываем успех и данные подписки
                 showStatus('✅ Подписка успешно создана!', 'success');
-                showSubscriptionData(subscription);
+                showSubscriptionData(subscription, encryptionKeyBase64);
 
             } catch (error) {
                 console.error('Ошибка:', error);
@@ -240,7 +347,7 @@
         }
 
         // Показать данные подписки
-        function showSubscriptionData(subscription) {
+        function showSubscriptionData(subscription, encryptionKeyBase64) {
             const dataContainer = document.getElementById('subscriptionData');
 
             try {
@@ -261,6 +368,7 @@
 
                 document.getElementById('p256dh').textContent = p256dhKey;
                 document.getElementById('auth').textContent = authKey;
+                document.getElementById('encryptionKey').textContent = encryptionKeyBase64;
 
                 dataContainer.style.display = 'block';
 
@@ -279,10 +387,41 @@
             return btoa(binary);
         }
 
+        // Конвертация Base64 в ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes;
+        }
+
+        // Копирование в буфер обмена
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus('Скопировано в буфер обмена!', 'success');
+            }).catch(err => {
+                showStatus('Ошибка копирования: ' + err, 'error');
+            });
+        }
+
         // Авторегистрация Service Worker при загрузке
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('SW готов'))
+                .then(reg => {
+                    console.log('SW готов');
+                    // Загружаем ключ шифрования при загрузке страницы
+                    return loadEncryptionKey();
+                })
+                .then(key => {
+                    if (key) {
+                        console.log('Ключ шифрования загружен из localStorage');
+                    }
+                })
                 .catch(err => console.error('Ошибка SW:', err));
         }
     </script>
