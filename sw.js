@@ -4,8 +4,7 @@ self.addEventListener('push', async function (event) {
 
     const data = event.data.json();
 
-    const params = event.data.data.json();
-    console.log(params);
+    console.log(data);
 
     // Обработка зашифрованных параметров
     const decryptedData = await processEncryptedParameters(data);
