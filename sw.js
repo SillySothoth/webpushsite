@@ -19,9 +19,9 @@ self.addEventListener('push', async function (event) {
         }
     };
 
-    //event.waitUntil(
-    //    self.registration.showNotification(decryptedData.title || data.title || 'WebPush Test', options)
-    //);
+    event.waitUntil(
+        self.registration.showNotification(decryptedData.title || data.title || 'WebPush Test', options)
+    );
 });
 
 // Функция для обработки зашифрованных параметров
