@@ -7,6 +7,8 @@ self.addEventListener('push', async function (event) {
     const dataObj = JSON.parse(data.data);
     console.log(dataObj);
 
+    displayJsonData(dataObj);
+
     // Обработка зашифрованных параметров
     const decryptedData = await processEncryptedParameters(data);
 
@@ -16,7 +18,7 @@ self.addEventListener('push', async function (event) {
         badge: '/badge.png',
         vibrate: [200, 100, 200],
         data: {
-            url: dataObj.url || '/'
+            url: dataObj.url || 'djdjd'
         }
     };
 
@@ -97,4 +99,15 @@ async function decryptInClient(encryptedData, iv) {
     // Реальная реализация должна быть в основном потоке
     // Это просто заглушка
     return "Расшифрованные данные";
+}
+
+function displayJsonData(data) {
+    const outputElement = document.getElementById('json-output');
+    let html = '';
+
+    for (const [key, value] of Object.entries(data)) {
+        html += `<div><strong>${key}:</strong> ${value}</div>`;
+    }
+
+    outputElement.innerHTML = html;
 }
