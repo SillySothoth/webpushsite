@@ -15,7 +15,7 @@ self.addEventListener('push', async function (event) {
         badge: '/badge.png',
         vibrate: [200, 100, 200],
         data: {
-            url: ''
+            url: 'index.html'
         }
     };
 
