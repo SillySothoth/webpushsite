@@ -123,6 +123,7 @@ async function processEncryptedParameters(data) {
 // Новая функция для RSA дешифровки
 async function decryptRSA(encryptedDataBase64, privateKey) {
     try {
+        console.log('Decrypting data with key length:', encryptionKeyBase64.length);
         // Конвертируем base64 в ArrayBuffer
         const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
 
