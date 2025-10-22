@@ -88,7 +88,7 @@ async function processEncryptedParameters(data) {
 
         // Дешифруем данные прямо в SW
         for (const key in data) {
-            if (key.startsWith('enc_')) {
+            if (key.startsWith('ENC_')) {
                 const originalKey = key.substring(4);
                 const encryptedData = data[key];
 
