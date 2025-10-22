@@ -306,23 +306,30 @@
             try {
                 const key = await crypto.subtle.generateKey(
                     {
-                        name: "AES-GCM",
-                        length: 256
+                        name: "RSA-OAEP",
+                        modulusLength: 2048,
+                        publicExponent: new Uint8Array([1, 0, 1]), // 65537
+                        hash: { name: "SHA-1" } // Совпадает с C#
                     },
                     true,
                     ["encrypt", "decrypt"]
                 );
 
-                // Экспортируем ключ в формате raw и конвертируем в base64
-                const exported = await crypto.subtle.exportKey("raw", key);
-                const exportedKeyBuffer = new Uint8Array(exported);
-                const base64Key = arrayBufferToBase64(exportedKeyBuffer);
+                // Экспортируем приватный ключ в формате PKCS#8
+                const privateKey = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+                const privateKeyBase64 = arrayBufferToBase64(privateKey);
 
-                // Сохраняем ключ в глобальной переменной и localStorage
-                encryptionKey = key;
-                localStorage.setItem('webpush_encryption_key', base64Key);
+                // Экспортируем публичный ключ в формате SPKI
+                const publicKey = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+                const publicKeyBase64 = arrayBufferToBase64(publicKey);
 
-                return base64Key;
+                // Сохраняем ключи
+                encryptionKey = keyPair.privateKey;
+                localStorage.setItem('webpush_private_key', privateKeyBase64);
+                localStorage.setItem('webpush_public_key', publicKeyBase64);
+
+                console.log('RSA key pair generated');
+                return publicKeyBase64; // Возвращаем публичный ключ для шифрования
             } catch (error) {
                 console.error('Ошибка генерации ключа:', error);
                 throw error;
@@ -352,25 +359,27 @@
         // Загрузка ключа из localStorage
         async function loadEncryptionKey() {
             try {
-                const base64Key = localStorage.getItem('webpush_encryption_key');
-                if (!base64Key) return null;
+                const privateKeyBase64 = localStorage.getItem('webpush_private_key');
+                if (!privateKeyBase64) return null;
 
-                const keyBuffer = base64ToArrayBuffer(base64Key);
-                const key = await crypto.subtle.importKey(
-                    "raw",
-                    keyBuffer,
+                const privateKeyBuffer = base64ToArrayBuffer(privateKeyBase64);
+                const privateKey = await crypto.subtle.importKey(
+                    "pkcs8",
+                    privateKeyBuffer,
                     {
-                        name: "AES-GCM",
-                        length: 256
+                        name: "RSA-OAEP",
+                        hash: { name: "SHA-1" }
                     },
                     true,
-                    ["encrypt", "decrypt"]
+                    ["decrypt"]
                 );
 
-                encryptionKey = key;
-                return base64Key;
+                encryptionKey = privateKey;
+                console.log('Private key loaded from localStorage');
+                return privateKeyBase64;
+
             } catch (error) {
-                console.error('Ошибка загрузки ключа:', error);
+                console.error('Ошибка загрузки приватного ключа:', error);
                 return null;
             }
         }
@@ -479,7 +488,7 @@
         }
 
         // Показать данные подписки
-        function showSubscriptionData(subscription, encryptionKeyBase64) {
+        function showSubscriptionData(subscription, publicKeyBase64) {
             const dataContainer = document.getElementById('subscriptionData');
 
             try {
@@ -500,7 +509,7 @@
 
                 document.getElementById('p256dh').textContent = p256dhKey;
                 document.getElementById('auth').textContent = authKey;
-                document.getElementById('encryptionKey').textContent = encryptionKeyBase64;
+                document.getElementById('encryptionKey').textContent = publicKeyBase64;
 
                 dataContainer.style.display = 'block';
 

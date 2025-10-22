@@ -95,16 +95,16 @@ async function processEncryptedParameters(data) {
                 console.log(`Decrypting ${key} to ${originalKey}`, encryptedData);
 
                 try {
-                    // Проверяем что есть данные для дешифровки
-                    if (encryptedData && encryptedData.data && encryptedData.iv) {
-                        const decrypted = await decryptInSW(encryptedData.data, encryptedData.iv, encryptionKey);
+                    if (encryptedDataBase64) {
+                        // Дешифруем RSA
+                        const decrypted = await decryptRSA(encryptedDataBase64, privateKey);
                         result[originalKey] = decrypted;
                         console.log(`Successfully decrypted ${key}: ${decrypted}`);
 
-                        // Удаляем зашифрованную версию из результата
+                        // Удаляем зашифрованную версию
                         delete result[key];
                     } else {
-                        console.warn(`Invalid encrypted data structure for ${key}`, encryptedData);
+                        console.warn(`Empty encrypted data for ${key}`);
                     }
                 } catch (decryptError) {
                     console.error(`Decryption failed for ${key}:`, decryptError);
@@ -118,6 +118,30 @@ async function processEncryptedParameters(data) {
     }
 
     return result;
+}
+
+// Новая функция для RSA дешифровки
+async function decryptRSA(encryptedDataBase64, privateKey) {
+    try {
+        // Конвертируем base64 в ArrayBuffer
+        const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
+
+        // Дешифруем с помощью RSA-OAEP
+        const decrypted = await crypto.subtle.decrypt(
+            {
+                name: "RSA-OAEP"
+            },
+            privateKey,
+            encryptedData
+        );
+
+        const result = new TextDecoder().decode(decrypted);
+        return result;
+
+    } catch (error) {
+        console.error('RSA decryption error:', error);
+        throw error;
+    }
 }
 
 // Новая функция дешифровки в SW
@@ -245,17 +269,19 @@ self.addEventListener('message', async function (event) {
 });
 
 // Сохраняем ключ шифрования в кеше SW
-async function saveEncryptionKeyToSW(keyBase64) {
+async function saveEncryptionKeyToSW(privateKeyBase64) {
     try {
         const cache = await caches.open('encryption-keys');
         const response = new Response(JSON.stringify({
-            key: keyBase64,
-            timestamp: Date.now()
+            key: privateKeyBase64,
+            timestamp: Date.now(),
+            algorithm: 'RSA-OAEP-SHA1'
         }));
         await cache.put('encryption-key', response);
-        console.log('Encryption key saved to SW cache, length:', keyBase64.length);
+        console.log('Private key saved to SW cache');
+        return true;
     } catch (error) {
-        console.error('Error saving encryption key to SW:', error);
+        console.error('Error saving private key to SW:', error);
         return false;
     }
 }
@@ -267,8 +293,22 @@ async function getEncryptionKeyFromSW() {
         const response = await cache.match('encryption-key');
         if (response) {
             const data = await response.json();
-            console.log('Encryption key loaded from SW cache, length:', data.key.length);
-            return data.key;
+
+            // Импортируем приватный ключ
+            const privateKeyBuffer = base64ToArrayBuffer(data.key);
+            const privateKey = await crypto.subtle.importKey(
+                "pkcs8",
+                privateKeyBuffer,
+                {
+                    name: "RSA-OAEP",
+                    hash: { name: "SHA-1" }
+                },
+                true,
+                ["decrypt"]
+            );
+
+            console.log('Private key loaded and imported from SW cache');
+            return privateKey;
         } else {
             console.log('No encryption key found in SW cache');
             return null;
@@ -277,5 +317,4 @@ async function getEncryptionKeyFromSW() {
         console.error('Error getting encryption key from SW:', error);
         return null;
     }
-    return null;
 }
