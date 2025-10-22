@@ -15,7 +15,8 @@ self.addEventListener('push', async function (event) {
         badge: '/badge.png',
         vibrate: [200, 100, 200],
         data: {
-            url: data.data.Url || data.data.url || decryptedData.url || data.url || '/'
+            url: data.data.Url// || data.data.url || decryptedData.url || data.url 
+                || '/'
         }
     };
 
