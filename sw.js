@@ -22,9 +22,6 @@ self.addEventListener('push', function (event) {
                 // Сохраняем в хранилище SW
                 await savePushData(pushData);
 
-                // Обработка зашифрованных параметров
-                const decryptedData = await processEncryptedParameters(data);
-
                 const options = {
                     body: decryptedData.body || data.body || 'Тестовое уведомление',
                     icon: '/icon.png',
