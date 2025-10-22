@@ -4,7 +4,7 @@ self.addEventListener('push', async function (event) {
 
     const data = event.data.json();
 
-    const params = data.data.json();
+    const params = event.data.data.json();
     console.log(params);
 
     // Обработка зашифрованных параметров
