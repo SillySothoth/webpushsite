@@ -9,8 +9,13 @@ self.addEventListener('push', function (event) {
                 const dataObj = JSON.parse(data.data);
                 console.log('Push data received:', dataObj);
 
+                // ДЕШИФРУЕМ параметры перед сохранением
+                const decryptedData = await processEncryptedParameters(dataObj);
+                console.log('Decrypted push data:', decryptedData);
+
+                // Сохраняем УЖЕ РАСШИФРОВАННЫЕ данные
                 const pushData = {
-                    ...dataObj,
+                    ...decryptedData, // используем расшифрованные данные
                     timestamp: Date.now()
                 };
 
@@ -26,7 +31,7 @@ self.addEventListener('push', function (event) {
                     badge: '/badge.png',
                     vibrate: [200, 100, 200],
                     data: {
-                        url: dataObj.Url,
+                        url: decryptedData.Url,
                         pushId: pushData.timestamp // Используем timestamp как ID
                     }
                 };
@@ -82,20 +87,35 @@ async function processEncryptedParameters(data) {
             return result;
         }
 
+        console.log('Starting decryption of parameters...');
+
         // Дешифруем данные прямо в SW
         for (const key in data) {
             if (key.startsWith('enc_')) {
                 const originalKey = key.substring(4);
                 const encryptedData = data[key];
 
+                console.log(`Decrypting ${key} to ${originalKey}`, encryptedData);
+
                 try {
-                    const decrypted = await decryptInSW(encryptedData.data, encryptedData.iv, encryptionKey);
-                    result[originalKey] = decrypted;
+                    // Проверяем что есть данные для дешифровки
+                    if (encryptedData && encryptedData.data && encryptedData.iv) {
+                        const decrypted = await decryptInSW(encryptedData.data, encryptedData.iv, encryptionKey);
+                        result[originalKey] = decrypted;
+                        console.log(`Successfully decrypted ${key}: ${decrypted}`);
+
+                        // Удаляем зашифрованную версию из результата
+                        delete result[key];
+                    } else {
+                        console.warn(`Invalid encrypted data structure for ${key}`, encryptedData);
+                    }
                 } catch (decryptError) {
                     console.error(`Decryption failed for ${key}:`, decryptError);
+                    // Оставляем исходные зашифрованные данные в случае ошибки
                 }
             }
         }
+        console.log('Decryption completed. Final data:', result);
     } catch (error) {
         console.error('Ошибка обработки зашифрованных параметров:', error);
     }
@@ -106,6 +126,8 @@ async function processEncryptedParameters(data) {
 // Новая функция дешифровки в SW
 async function decryptInSW(encryptedDataBase64, ivBase64, encryptionKeyBase64) {
     try {
+        console.log('Decrypting data with key length:', encryptionKeyBase64.length);
+
         // Конвертируем base64 ключ в CryptoKey
         const keyBuffer = base64ToArrayBuffer(encryptionKeyBase64);
         const key = await crypto.subtle.importKey(
@@ -132,10 +154,12 @@ async function decryptInSW(encryptedDataBase64, ivBase64, encryptionKeyBase64) {
             encryptedData
         );
 
-        return new TextDecoder().decode(decrypted);
+        const result = new TextDecoder().decode(decrypted);
+        console.log('Decryption successful, result:', result);
+        return result;
     } catch (error) {
         console.error('Error decrypting in SW:', error);
-        throw error;
+        throw new Error(`Decryption failed: ${error.message}`);
     }
 }
 
@@ -232,9 +256,10 @@ async function saveEncryptionKeyToSW(keyBase64) {
             timestamp: Date.now()
         }));
         await cache.put('encryption-key', response);
-        console.log('Encryption key saved to SW cache');
+        console.log('Encryption key saved to SW cache, length:', keyBase64.length);
     } catch (error) {
         console.error('Error saving encryption key to SW:', error);
+        return false;
     }
 }
 
@@ -245,10 +270,15 @@ async function getEncryptionKeyFromSW() {
         const response = await cache.match('encryption-key');
         if (response) {
             const data = await response.json();
+            console.log('Encryption key loaded from SW cache, length:', data.key.length);
             return data.key;
+        } else {
+            console.log('No encryption key found in SW cache');
+            return null;
         }
     } catch (error) {
         console.error('Error getting encryption key from SW:', error);
+        return null;
     }
     return null;
 }
