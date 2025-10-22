@@ -189,6 +189,33 @@
         // Глобальная переменная для хранения ключа шифрования
         let encryptionKey = null;
 
+        // Получаем сообщения от Service Worker
+        navigator.serviceWorker.addEventListener('message', function (event) {
+            if (event.data.type === 'PUSH_DATA') {
+                displayJsonData(event.data.data);
+            }
+        });
+
+        // Функция для отображения данных на странице
+        function displayJsonData(data) {
+            const outputElement = document.getElementById('json-output');
+
+            if (!data || Object.keys(data).length === 0) {
+                outputElement.innerHTML = '<p>Нет данных</p>';
+                return;
+            }
+
+            let html = '';
+            for (const [key, value] of Object.entries(data)) {
+                html += `<div class="data-row">
+                            <span class="param">${key}:</span>
+                            <span class="value">${value}</span>
+                         </div>`;
+            }
+
+            outputElement.innerHTML = html;
+        }
+
         // Конвертация Base64 ключа в Uint8Array
         function urlBase64ToUint8Array(base64String) {
             const padding = '='.repeat((4 - base64String.length % 4) % 4);
