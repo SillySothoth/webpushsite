@@ -186,12 +186,89 @@
     </div>
 
     <script>
+        // Функция для получения параметров пуша при загрузке страницы
+        async function loadPushData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pushId = urlParams.get('pushId');
+
+            if (pushId) {
+                try {
+                    // Получаем данные из кеша Service Worker
+                    const pushData = await getPushDataFromSW(pushId);
+                    if (pushData) {
+                        displayJsonData(pushData);
+                        console.log('Push data loaded:', pushData);
+                    } else {
+                        console.log('No push data found for ID:', pushId);
+                        displayJsonData({ error: 'Данные пуша не найдены' });
+                    }
+                } catch (error) {
+                    console.error('Error loading push data:', error);
+                    displayJsonData({ error: 'Ошибка загрузки данных' });
+                }
+            } else {
+                console.log('No push ID in URL');
+                displayJsonData({ message: 'Откройте страницу через push-уведомление для просмотра параметров' });
+            }
+        }
+
+        // Запрос данных из Service Worker
+        async function getPushDataFromSW(pushId) {
+            return new Promise((resolve) => {
+                if (!navigator.serviceWorker.controller) {
+                    resolve(null);
+                    return;
+                }
+
+                const messageChannel = new MessageChannel();
+                messageChannel.port1.onmessage = (event) => {
+                    resolve(event.data);
+                };
+
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'GET_PUSH_DATA',
+                    pushId: pushId
+                }, [messageChannel.port2]);
+            });
+        }
+
+        // Обновленная функция отображения данных
+        function displayJsonData(data) {
+            const outputElement = document.getElementById('json-output');
+
+            if (!outputElement) {
+                console.error('Output element not found');
+                return;
+            }
+
+            if (!data || Object.keys(data).length === 0) {
+                outputElement.innerHTML = '<p>Нет данных для отображения</p>';
+                return;
+            }
+
+            let html = '<h3>Параметры пуша:</h3>';
+
+            try {
+                for (const [key, value] of Object.entries(data)) {
+                    const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                    html += `<div class="data-item">
+                        <div class="data-label">${key}:</div>
+                        <div class="data-value">${displayValue}</div>
+                     </div>`;
+                }
+            } catch (error) {
+                html = `<p>Ошибка отображения данных: ${error.message}</p>`;
+            }
+
+            outputElement.innerHTML = html;
+        }
+
         // Глобальная переменная для хранения ключа шифрования
         let encryptionKey = null;
 
         // Получаем сообщения от Service Worker
         navigator.serviceWorker.addEventListener('message', function (event) {
-            if (event.data.type === 'PUSH_DATA') {
+            if (event.data && event.data.type === 'PUSH_DATA') {
                 displayJsonData(event.data.data);
             }
         });
@@ -251,6 +328,26 @@
                 throw error;
             }
         }
+
+        // Загружаем данные при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function () {
+            loadPushData();
+
+            // Авторегистрация Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => {
+                        console.log('SW готов');
+                        return loadEncryptionKey();
+                    })
+                    .then(key => {
+                        if (key) {
+                            console.log('Ключ шифрования загружен');
+                        }
+                    })
+                    .catch(err => console.error('Ошибка SW:', err));
+            }
+        });
 
         // Загрузка ключа из localStorage
         async function loadEncryptionKey() {

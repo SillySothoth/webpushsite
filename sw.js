@@ -7,7 +7,15 @@ self.addEventListener('push', function (event) {
 
                 const data = event.data.json();
                 const dataObj = JSON.parse(data.data);
-                console.log(dataObj);
+                console.log('Push data received:', dataObj);
+
+                const pushData = {
+                    ...dataObj,
+                    timestamp: Date.now()
+                };
+
+                // Сохраняем в хранилище SW
+                await savePushData(pushData);
 
                 // Обработка зашифрованных параметров
                 const decryptedData = await processEncryptedParameters(data);
@@ -18,11 +26,12 @@ self.addEventListener('push', function (event) {
                     badge: '/badge.png',
                     vibrate: [200, 100, 200],
                     data: {
-                        url: dataObj.url
+                        url: dataObj.Url,
+                        pushId: pushData.timestamp // Используем timestamp как ID
                     }
                 };
 
-                await sendToClient(dataObj);
+                //await sendToClient(dataObj);
 
                 await self.registration.showNotification(
                     decryptedData.title || data.title || 'WebPush Test',
@@ -35,6 +44,31 @@ self.addEventListener('push', function (event) {
         })()
     );
 });
+
+// Сохраняем данные пуша
+async function savePushData(pushData) {
+    try {
+        const cache = await caches.open('push-data');
+        const response = new Response(JSON.stringify(pushData));
+        await cache.put(`push-${pushData.timestamp}`, response);
+    } catch (error) {
+        console.error('Error saving push data:', error);
+    }
+}
+
+// Получаем данные пуша
+async function getPushData(pushId) {
+    try {
+        const cache = await caches.open('push-data');
+        const response = await cache.match(`push-${pushId}`);
+        if (response) {
+            return await response.json();
+        }
+    } catch (error) {
+        console.error('Error getting push data:', error);
+    }
+    return null;
+}
 
 // Функция для обработки зашифрованных параметров
 async function processEncryptedParameters(data) {
@@ -78,12 +112,38 @@ async function processEncryptedParameters(data) {
 self.addEventListener('notificationclick', function (event) {
     event.notification.close();
 
-    console.log(event);
+    const pushId = event.notification.data.pushId;
+    const url = event.notification.data.url || '/';
+
+    // Добавляем параметр с ID пуша в URL
+    const urlWithParams = new URL(url, self.location.origin);
+    urlWithParams.searchParams.set('pushId', pushId);
 
     event.waitUntil(
-        clients.openWindow(event.notification.data.url)
+        clients.openWindow(urlWithParams.toString())
     );
 });
+
+// Очистка старых данных пуша
+async function cleanupOldPushData() {
+    try {
+        const cache = await caches.open('push-data');
+        const keys = await cache.keys();
+        const now = Date.now();
+        const dayInMs = 24 * 60 * 60 * 1000;
+
+        for (const request of keys) {
+            if (request.url.includes('push-')) {
+                const pushId = request.url.split('push-')[1];
+                if (now - parseInt(pushId) > dayInMs) {
+                    await cache.delete(request);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error cleaning up push data:', error);
+    }
+}
 
 self.addEventListener('pushsubscriptionchange', function (event) {
     console.log('Подписка изменена:', event);
@@ -100,6 +160,11 @@ self.addEventListener('message', async function (event) {
             event.ports[0].postMessage({ error: error.message });
         }
     }
+});
+
+// Запускаем очистку при активации SW
+self.addEventListener('activate', function (event) {
+    event.waitUntil(cleanupOldPushData());
 });
 
 // Функция-заглушка для расшифровки в клиенте
@@ -119,3 +184,15 @@ function sendToClient(data) {
         return Promise.all(promises);
     });
 }
+
+self.addEventListener('message', async function (event) {
+    if (event.data && event.data.type === 'GET_PUSH_DATA') {
+        try {
+            const pushData = await getPushData(event.data.pushId);
+            event.ports[0].postMessage(pushData);
+        } catch (error) {
+            console.error('Error getting push data:', error);
+            event.ports[0].postMessage(null);
+        }
+    }
+});
