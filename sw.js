@@ -4,6 +4,8 @@ self.addEventListener('push', async function (event) {
 
     const data = event.data.json();
 
+    console.log(data);
+
     // Обработка зашифрованных параметров
     const decryptedData = await processEncryptedParameters(data);
 
@@ -17,9 +19,9 @@ self.addEventListener('push', async function (event) {
         }
     };
 
-    event.waitUntil(
-        self.registration.showNotification(decryptedData.title || data.title || 'WebPush Test', options)
-    );
+    //event.waitUntil(
+    //    self.registration.showNotification(decryptedData.title || data.title || 'WebPush Test', options)
+    //);
 });
 
 // Функция для обработки зашифрованных параметров
