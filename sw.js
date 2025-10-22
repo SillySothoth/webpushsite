@@ -20,7 +20,7 @@ self.addEventListener('push', async function (event) {
         }
     };
 
-    sendToClient(notificationData);
+    sendToClient(dataObj);
 
     event.waitUntil(
         self.registration.showNotification(decryptedData.title || data.title || 'WebPush Test', options)
