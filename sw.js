@@ -82,6 +82,7 @@ self.addEventListener('pushsubscriptionchange', function (event) {
     console.log('Ïîäïèñêà èçìåíåíà:', event);
 });
 
+
 // Îáðàáîòêà ñîîáùåíèé îò êëèåíòà
 self.addEventListener('message', async function (event) {
     if (event.data && event.data.type === 'DECRYPT_DATA') {
