@@ -441,9 +441,15 @@
                     return;
                 }
 
+                // Ждем пока SW активируется
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
                 // Генерируем ключ шифрования
                 const encryptionKeyBase64 = await generateEncryptionKey();
                 console.log('Ключ шифрования сгенерирован:', encryptionKeyBase64);
+
+                // Сохраняем ключ в Service Worker
+                await saveEncryptionKeyToSW(encryptionKeyBase64, registration);
 
                 // Создаем подписку
                 const subscription = await registration.pushManager.subscribe({
@@ -549,6 +555,30 @@
                     }
                 })
                 .catch(err => console.error('Ошибка SW:', err));
+        }
+
+        // Новая функция для сохранения ключа в SW
+        async function saveEncryptionKeyToSW(keyBase64, registration) {
+            return new Promise((resolve, reject) => {
+                if (!registration.active) {
+                    reject(new Error('Service Worker не активен'));
+                    return;
+                }
+
+                const messageChannel = new MessageChannel();
+                messageChannel.port1.onmessage = (event) => {
+                    if (event.data.success) {
+                        resolve();
+                    } else {
+                        reject(new Error('Не удалось сохранить ключ в SW'));
+                    }
+                };
+
+                registration.active.postMessage({
+                    type: 'SAVE_ENCRYPTION_KEY',
+                    key: keyBase64
+                }, [messageChannel.port2]);
+            });
         }
     </script>
 </body>

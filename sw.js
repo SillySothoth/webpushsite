@@ -75,30 +75,24 @@ async function processEncryptedParameters(data) {
     const result = { ...data };
 
     try {
-        const clients = await self.clients.matchAll();
-        if (clients.length === 0) return result;
+        // Получаем ключ из кеша SW вместо запроса к клиенту
+        const encryptionKey = await getEncryptionKeyFromSW();
+        if (!encryptionKey) {
+            console.log('Encryption key not found in SW');
+            return result;
+        }
 
+        // Дешифруем данные прямо в SW
         for (const key in data) {
             if (key.startsWith('enc_')) {
                 const originalKey = key.substring(4);
                 const encryptedData = data[key];
 
-                const channel = new MessageChannel();
-                const responsePromise = new Promise((resolve) => {
-                    channel.port1.onmessage = (event) => {
-                        resolve(event.data);
-                    };
-                });
-
-                clients[0].postMessage({
-                    type: 'DECRYPT_DATA',
-                    encryptedData: encryptedData.data,
-                    iv: encryptedData.iv
-                }, [channel.port2]);
-
-                const response = await responsePromise;
-                if (response && response.decrypted) {
-                    result[originalKey] = response.decrypted;
+                try {
+                    const decrypted = await decryptInSW(encryptedData.data, encryptedData.iv, encryptionKey);
+                    result[originalKey] = decrypted;
+                } catch (decryptError) {
+                    console.error(`Decryption failed for ${key}:`, decryptError);
                 }
             }
         }
@@ -107,6 +101,52 @@ async function processEncryptedParameters(data) {
     }
 
     return result;
+}
+
+// Новая функция дешифровки в SW
+async function decryptInSW(encryptedDataBase64, ivBase64, encryptionKeyBase64) {
+    try {
+        // Конвертируем base64 ключ в CryptoKey
+        const keyBuffer = base64ToArrayBuffer(encryptionKeyBase64);
+        const key = await crypto.subtle.importKey(
+            "raw",
+            keyBuffer,
+            {
+                name: "AES-GCM",
+                length: 256
+            },
+            true,
+            ["decrypt"]
+        );
+
+        // Дешифруем данные
+        const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
+        const iv = base64ToArrayBuffer(ivBase64);
+
+        const decrypted = await crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: iv
+            },
+            key,
+            encryptedData
+        );
+
+        return new TextDecoder().decode(decrypted);
+    } catch (error) {
+        console.error('Error decrypting in SW:', error);
+        throw error;
+    }
+}
+
+// Вспомогательная функция для SW
+function base64ToArrayBuffer(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
 }
 
 self.addEventListener('notificationclick', function (event) {
@@ -149,29 +189,10 @@ self.addEventListener('pushsubscriptionchange', function (event) {
     console.log('Подписка изменена:', event);
 });
 
-// Обработка сообщений от клиента
-self.addEventListener('message', async function (event) {
-    if (event.data && event.data.type === 'DECRYPT_DATA') {
-        try {
-            const decrypted = await decryptInClient(event.data.encryptedData, event.data.iv);
-            event.ports[0].postMessage({ decrypted });
-        } catch (error) {
-            console.error('Ошибка расшифровки:', error);
-            event.ports[0].postMessage({ error: error.message });
-        }
-    }
-});
-
 // Запускаем очистку при активации SW
 self.addEventListener('activate', function (event) {
     event.waitUntil(cleanupOldPushData());
 });
-
-// Функция-заглушка для расшифровки в клиенте
-async function decryptInClient(encryptedData, iv) {
-    // Реальная реализация должна быть в основном потоке
-    return "Расшифрованные данные";
-}
 
 function sendToClient(data) {
     return self.clients.matchAll().then(clients => {
@@ -186,7 +207,12 @@ function sendToClient(data) {
 }
 
 self.addEventListener('message', async function (event) {
-    if (event.data && event.data.type === 'GET_PUSH_DATA') {
+    if (event.data && event.data.type === 'SAVE_ENCRYPTION_KEY') {
+        // Сохраняем ключ от клиента в SW
+        await saveEncryptionKeyToSW(event.data.key);
+        event.ports[0].postMessage({ success: true });
+    }
+    else if (event.data && event.data.type === 'GET_PUSH_DATA') {
         try {
             const pushData = await getPushData(event.data.pushId);
             event.ports[0].postMessage(pushData);
@@ -196,3 +222,33 @@ self.addEventListener('message', async function (event) {
         }
     }
 });
+
+// Сохраняем ключ шифрования в кеше SW
+async function saveEncryptionKeyToSW(keyBase64) {
+    try {
+        const cache = await caches.open('encryption-keys');
+        const response = new Response(JSON.stringify({
+            key: keyBase64,
+            timestamp: Date.now()
+        }));
+        await cache.put('encryption-key', response);
+        console.log('Encryption key saved to SW cache');
+    } catch (error) {
+        console.error('Error saving encryption key to SW:', error);
+    }
+}
+
+// Получаем ключ шифрования из кеша SW
+async function getEncryptionKeyFromSW() {
+    try {
+        const cache = await caches.open('encryption-keys');
+        const response = await cache.match('encryption-key');
+        if (response) {
+            const data = await response.json();
+            return data.key;
+        }
+    } catch (error) {
+        console.error('Error getting encryption key from SW:', error);
+    }
+    return null;
+}
