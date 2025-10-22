@@ -291,7 +291,9 @@ async function saveEncryptionKeyToSW(privateKeyBase64) {
 async function getEncryptionKeyFromSW() {
     try {
         const cache = await caches.open('encryption-keys');
+        console.log(cache);
         const response = await cache.match('encryption-key');
+        console.log(response);
         if (response) {
             const data = await response.json();
 
