@@ -1,29 +1,38 @@
 // Простой Service Worker для обработки push-уведомлений
-self.addEventListener('push', async function (event) {
-    if (!event.data) return;
-
-    const data = event.data.json();
-
-    const dataObj = JSON.parse(data.data);
-    console.log(dataObj);
-
-    // Обработка зашифрованных параметров
-    const decryptedData = await processEncryptedParameters(data);
-
-    const options = {
-        body: decryptedData.body || data.body || 'Тестовое уведомление',
-        icon: '/icon.png',
-        badge: '/badge.png',
-        vibrate: [200, 100, 200],
-        data: {
-            url: dataObj.url
-        }
-    };
-
-    sendToClient(dataObj);
-
+self.addEventListener('push', function (event) {
     event.waitUntil(
-        self.registration.showNotification(decryptedData.title || data.title || 'WebPush Test', options)
+        (async function () {
+            try {
+                if (!event.data) return;
+
+                const data = event.data.json();
+                const dataObj = JSON.parse(data.data);
+                console.log(dataObj);
+
+                // Обработка зашифрованных параметров
+                const decryptedData = await processEncryptedParameters(data);
+
+                const options = {
+                    body: decryptedData.body || data.body || 'Тестовое уведомление',
+                    icon: '/icon.png',
+                    badge: '/badge.png',
+                    vibrate: [200, 100, 200],
+                    data: {
+                        url: dataObj.url
+                    }
+                };
+
+                await sendToClient(dataObj);
+
+                await self.registration.showNotification(
+                    decryptedData.title || data.title || 'WebPush Test',
+                    options
+                );
+
+            } catch (error) {
+                console.error('Error in push event:', error);
+            }
+        })()
     );
 });
 
@@ -32,27 +41,28 @@ async function processEncryptedParameters(data) {
     const result = { ...data };
 
     try {
-        // Получаем ключ шифрования из клиента
         const clients = await self.clients.matchAll();
         if (clients.length === 0) return result;
 
-        const client = clients[0];
-
-        // Ищем параметры с префиксом enc_
         for (const key in data) {
             if (key.startsWith('enc_')) {
-                const originalKey = key.substring(4); // Убираем префикс enc_
-
-                // Предполагаем, что зашифрованные данные содержат данные и IV в формате base64
+                const originalKey = key.substring(4);
                 const encryptedData = data[key];
 
-                // Отправляем запрос на расшифровку клиенту
-                const response = await client.postMessage({
+                const channel = new MessageChannel();
+                const responsePromise = new Promise((resolve) => {
+                    channel.port1.onmessage = (event) => {
+                        resolve(event.data);
+                    };
+                });
+
+                clients[0].postMessage({
                     type: 'DECRYPT_DATA',
                     encryptedData: encryptedData.data,
                     iv: encryptedData.iv
-                });
+                }, [channel.port2]);
 
+                const response = await responsePromise;
                 if (response && response.decrypted) {
                     result[originalKey] = response.decrypted;
                 }
@@ -83,8 +93,6 @@ self.addEventListener('pushsubscriptionchange', function (event) {
 self.addEventListener('message', async function (event) {
     if (event.data && event.data.type === 'DECRYPT_DATA') {
         try {
-            // Здесь должна быть реализация расшифровки в клиенте
-            // Для простоты возвращаем фиктивные данные
             const decrypted = await decryptInClient(event.data.encryptedData, event.data.iv);
             event.ports[0].postMessage({ decrypted });
         } catch (error) {
@@ -97,17 +105,17 @@ self.addEventListener('message', async function (event) {
 // Функция-заглушка для расшифровки в клиенте
 async function decryptInClient(encryptedData, iv) {
     // Реальная реализация должна быть в основном потоке
-    // Это просто заглушка
     return "Расшифрованные данные";
 }
 
 function sendToClient(data) {
-    self.clients.matchAll().then(clients => {
-        clients.forEach(client => {
+    return self.clients.matchAll().then(clients => {
+        const promises = clients.map(client =>
             client.postMessage({
                 type: 'PUSH_DATA',
                 data: data
-            });
-        });
+            })
+        );
+        return Promise.all(promises);
     });
 }
