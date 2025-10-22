@@ -66,7 +66,7 @@ async function processEncryptedParameters(data) {
 self.addEventListener('notificationclick', function (event) {
     event.notification.close();
 
-    cosole.log(event);
+    console.log(event);
 
     event.waitUntil(
         clients.openWindow(event.notification.data.url)
