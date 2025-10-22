@@ -1,22 +1,23 @@
-// Простой Service Worker для обработки push-уведомлений
+// ГЏГ°Г®Г±ГІГ®Г© Service Worker Г¤Г«Гї Г®ГЎГ°Г ГЎГ®ГІГЄГЁ push-ГіГўГҐГ¤Г®Г¬Г«ГҐГ­ГЁГ©
 self.addEventListener('push', async function (event) {
     if (!event.data) return;
 
     const data = event.data.text();
 
     console.log('=== WEB PUSH RECEIVED ===');
-    console.log('Полученные данные:', data);
+    console.log('ГЏГ®Г«ГіГ·ГҐГ­Г­Г»ГҐ Г¤Г Г­Г­Г»ГҐ:', data);
 
-    // Выводим все параметры с названиями и значениями
-    console.log('--- Все параметры push-уведомления ---');
+    // Г‚Г»ГўГ®Г¤ГЁГ¬ ГўГ±ГҐ ГЇГ Г°Г Г¬ГҐГІГ°Г» Г± Г­Г Г§ГўГ Г­ГЁГїГ¬ГЁ ГЁ Г§Г­Г Г·ГҐГ­ГЁГїГ¬ГЁ
+    console.log('--- Г‚Г±ГҐ ГЇГ Г°Г Г¬ГҐГІГ°Г» push-ГіГўГҐГ¤Г®Г¬Г«ГҐГ­ГЁГї ---');
     for (const [key, value] of Object.entries(data)) {
-        console.log(`Параметр: ${key} =`, value);
+        console.log(`ГЏГ Г°Г Г¬ГҐГІГ°: ${key} =`, value);
+    }
 
-    // Обработка зашифрованных параметров
+    // ГЋГЎГ°Г ГЎГ®ГІГЄГ  Г§Г ГёГЁГґГ°Г®ГўГ Г­Г­Г»Гµ ГЇГ Г°Г Г¬ГҐГІГ°Г®Гў
     const decryptedData = await processEncryptedParameters(data);
 
     const options = {
-        body: decryptedData.body || data.body || 'Тестовое уведомление',
+        body: decryptedData.body || data.body || 'Г’ГҐГ±ГІГ®ГўГ®ГҐ ГіГўГҐГ¤Г®Г¬Г«ГҐГ­ГЁГҐ',
         icon: '/icon.png',
         badge: '/badge.png',
         vibrate: [200, 100, 200],
@@ -30,26 +31,26 @@ self.addEventListener('push', async function (event) {
     );
 });
 
-// Функция для обработки зашифрованных параметров
+// Г”ГіГ­ГЄГ¶ГЁГї Г¤Г«Гї Г®ГЎГ°Г ГЎГ®ГІГЄГЁ Г§Г ГёГЁГґГ°Г®ГўГ Г­Г­Г»Гµ ГЇГ Г°Г Г¬ГҐГІГ°Г®Гў
 async function processEncryptedParameters(data) {
     const result = { ...data };
 
     try {
-        // Получаем ключ шифрования из клиента
+        // ГЏГ®Г«ГіГ·Г ГҐГ¬ ГЄГ«ГѕГ· ГёГЁГґГ°Г®ГўГ Г­ГЁГї ГЁГ§ ГЄГ«ГЁГҐГ­ГІГ 
         const clients = await self.clients.matchAll();
         if (clients.length === 0) return result;
 
         const client = clients[0];
 
-        // Ищем параметры с префиксом enc_
+        // Г€Г№ГҐГ¬ ГЇГ Г°Г Г¬ГҐГІГ°Г» Г± ГЇГ°ГҐГґГЁГЄГ±Г®Г¬ enc_
         for (const key in data) {
             if (key.startsWith('enc_')) {
-                const originalKey = key.substring(4); // Убираем префикс enc_
+                const originalKey = key.substring(4); // Г“ГЎГЁГ°Г ГҐГ¬ ГЇГ°ГҐГґГЁГЄГ± enc_
 
-                // Предполагаем, что зашифрованные данные содержат данные и IV в формате base64
+                // ГЏГ°ГҐГ¤ГЇГ®Г«Г ГЈГ ГҐГ¬, Г·ГІГ® Г§Г ГёГЁГґГ°Г®ГўГ Г­Г­Г»ГҐ Г¤Г Г­Г­Г»ГҐ Г±Г®Г¤ГҐГ°Г¦Г ГІ Г¤Г Г­Г­Г»ГҐ ГЁ IV Гў ГґГ®Г°Г¬Г ГІГҐ base64
                 const encryptedData = data[key];
 
-                // Отправляем запрос на расшифровку клиенту
+                // ГЋГІГЇГ°Г ГўГ«ГїГҐГ¬ Г§Г ГЇГ°Г®Г± Г­Г  Г°Г Г±ГёГЁГґГ°Г®ГўГЄГі ГЄГ«ГЁГҐГ­ГІГі
                 const response = await client.postMessage({
                     type: 'DECRYPT_DATA',
                     encryptedData: encryptedData.data,
@@ -62,7 +63,7 @@ async function processEncryptedParameters(data) {
             }
         }
     } catch (error) {
-        console.error('Ошибка обработки зашифрованных параметров:', error);
+        console.error('ГЋГёГЁГЎГЄГ  Г®ГЎГ°Г ГЎГ®ГІГЄГЁ Г§Г ГёГЁГґГ°Г®ГўГ Г­Г­Г»Гµ ГЇГ Г°Г Г¬ГҐГІГ°Г®Гў:', error);
     }
 
     return result;
@@ -77,27 +78,27 @@ self.addEventListener('notificationclick', function (event) {
 });
 
 self.addEventListener('pushsubscriptionchange', function (event) {
-    console.log('Подписка изменена:', event);
+    console.log('ГЏГ®Г¤ГЇГЁГ±ГЄГ  ГЁГ§Г¬ГҐГ­ГҐГ­Г :', event);
 });
 
-// Обработка сообщений от клиента
+// ГЋГЎГ°Г ГЎГ®ГІГЄГ  Г±Г®Г®ГЎГ№ГҐГ­ГЁГ© Г®ГІ ГЄГ«ГЁГҐГ­ГІГ 
 self.addEventListener('message', async function (event) {
     if (event.data && event.data.type === 'DECRYPT_DATA') {
         try {
-            // Здесь должна быть реализация расшифровки в клиенте
-            // Для простоты возвращаем фиктивные данные
+            // Г‡Г¤ГҐГ±Гј Г¤Г®Г«Г¦Г­Г  ГЎГ»ГІГј Г°ГҐГ Г«ГЁГ§Г Г¶ГЁГї Г°Г Г±ГёГЁГґГ°Г®ГўГЄГЁ Гў ГЄГ«ГЁГҐГ­ГІГҐ
+            // Г„Г«Гї ГЇГ°Г®Г±ГІГ®ГІГ» ГўГ®Г§ГўГ°Г Г№Г ГҐГ¬ ГґГЁГЄГІГЁГўГ­Г»ГҐ Г¤Г Г­Г­Г»ГҐ
             const decrypted = await decryptInClient(event.data.encryptedData, event.data.iv);
             event.ports[0].postMessage({ decrypted });
         } catch (error) {
-            console.error('Ошибка расшифровки:', error);
+            console.error('ГЋГёГЁГЎГЄГ  Г°Г Г±ГёГЁГґГ°Г®ГўГЄГЁ:', error);
             event.ports[0].postMessage({ error: error.message });
         }
     }
 });
 
-// Функция-заглушка для расшифровки в клиенте
+// Г”ГіГ­ГЄГ¶ГЁГї-Г§Г ГЈГ«ГіГёГЄГ  Г¤Г«Гї Г°Г Г±ГёГЁГґГ°Г®ГўГЄГЁ Гў ГЄГ«ГЁГҐГ­ГІГҐ
 async function decryptInClient(encryptedData, iv) {
-    // Реальная реализация должна быть в основном потоке
-    // Это просто заглушка
-    return "Расшифрованные данные";
+    // ГђГҐГ Г«ГјГ­Г Гї Г°ГҐГ Г«ГЁГ§Г Г¶ГЁГї Г¤Г®Г«Г¦Г­Г  ГЎГ»ГІГј Гў Г®Г±Г­Г®ГўГ­Г®Г¬ ГЇГ®ГІГ®ГЄГҐ
+    // ГќГІГ® ГЇГ°Г®Г±ГІГ® Г§Г ГЈГ«ГіГёГЄГ 
+    return "ГђГ Г±ГёГЁГґГ°Г®ГўГ Г­Г­Г»ГҐ Г¤Г Г­Г­Г»ГҐ";
 }
