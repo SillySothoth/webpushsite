@@ -7,8 +7,6 @@ self.addEventListener('push', async function (event) {
     const dataObj = JSON.parse(data.data);
     console.log(dataObj);
 
-    displayJsonData(dataObj);
-
     // Обработка зашифрованных параметров
     const decryptedData = await processEncryptedParameters(data);
 
@@ -21,6 +19,8 @@ self.addEventListener('push', async function (event) {
             url: dataObj.url || 'djdjd'
         }
     };
+
+    sendToClient(notificationData);
 
     event.waitUntil(
         self.registration.showNotification(decryptedData.title || data.title || 'WebPush Test', options)
@@ -101,13 +101,13 @@ async function decryptInClient(encryptedData, iv) {
     return "Расшифрованные данные";
 }
 
-function displayJsonData(data) {
-    const outputElement = document.getElementById('json-output');
-    let html = '';
-
-    for (const [key, value] of Object.entries(data)) {
-        html += `<div><strong>${key}:</strong> ${value}</div>`;
-    }
-
-    outputElement.innerHTML = html;
+function sendToClient(data) {
+    self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+            client.postMessage({
+                type: 'PUSH_DATA',
+                data: data
+            });
+        });
+    });
 }
