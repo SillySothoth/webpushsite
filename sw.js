@@ -95,9 +95,9 @@ async function processEncryptedParameters(data) {
                 console.log(`Decrypting ${key} to ${originalKey}`, encryptedData);
 
                 try {
-                    if (encryptedDataBase64) {
+                    if (encryptedData) {
                         // Дешифруем RSA
-                        const decrypted = await decryptRSA(encryptedDataBase64, privateKey);
+                        const decrypted = await decryptInSW(encryptionKey, encryptedData);
                         result[originalKey] = decrypted;
                         console.log(`Successfully decrypted ${key}: ${decrypted}`);
 
@@ -146,43 +146,73 @@ async function decryptRSA(encryptedDataBase64, privateKey) {
 }
 
 // Новая функция дешифровки в SW
-async function decryptInSW(encryptedDataBase64, ivBase64, encryptionKeyBase64) {
-    try {
-        console.log('Decrypting data with key length:', encryptionKeyBase64.length);
+async function decryptInSW(privateKey, encryptedData) {
+    if (!privateKey) {
+        throw new Error('Приватный ключ не предоставлен');
+    }
 
-        // Конвертируем base64 ключ в CryptoKey
-        const keyBuffer = base64ToArrayBuffer(encryptionKeyBase64);
-        const key = await crypto.subtle.importKey(
-            "raw",
-            keyBuffer,
-            {
-                name: "AES-GCM",
-                length: 256
-            },
-            true,
-            ["decrypt"]
-        );
+    try {
+        // Преобразуем Base64 обратно в ArrayBuffer
+        const binaryString = atob(encryptedData);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
 
         // Дешифруем данные
-        const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
-        const iv = base64ToArrayBuffer(ivBase64);
-
         const decrypted = await crypto.subtle.decrypt(
             {
-                name: "AES-GCM",
-                iv: iv
+                name: "RSA-OAEP",
+                hash: "SHA-256"
             },
-            key,
-            encryptedData
+            privateKey,
+            bytes
         );
 
-        const result = new TextDecoder().decode(decrypted);
-        console.log('Decryption successful, result:', result);
-        return result;
+        // Преобразуем в строку
+        const decoder = new TextDecoder();
+        return decoder.decode(decrypted);
     } catch (error) {
-        console.error('Error decrypting in SW:', error);
-        throw new Error(`Decryption failed: ${error.message}`);
+        console.error('Ошибка дешифрования:', error);
+        throw error;
     }
+
+    //try {
+    //    console.log('Decrypting data with key length:', encryptionKeyBase64.length);
+
+    //    // Конвертируем base64 ключ в CryptoKey
+    //    const keyBuffer = base64ToArrayBuffer(encryptionKeyBase64);
+    //    const key = await crypto.subtle.importKey(
+    //        "raw",
+    //        keyBuffer,
+    //        {
+    //            name: "AES-GCM",
+    //            length: 256
+    //        },
+    //        true,
+    //        ["decrypt"]
+    //    );
+
+    //    // Дешифруем данные
+    //    const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
+    //    const iv = base64ToArrayBuffer(ivBase64);
+
+    //    const decrypted = await crypto.subtle.decrypt(
+    //        {
+    //            name: "AES-GCM",
+    //            iv: iv
+    //        },
+    //        key,
+    //        encryptedData
+    //    );
+
+    //    const result = new TextDecoder().decode(decrypted);
+    //    console.log('Decryption successful, result:', result);
+    //    return result;
+    //} catch (error) {
+    //    console.error('Error decrypting in SW:', error);
+    //    throw new Error(`Decryption failed: ${error.message}`);
+    //}
 }
 
 // Вспомогательная функция для SW
@@ -240,17 +270,17 @@ self.addEventListener('activate', function (event) {
     event.waitUntil(cleanupOldPushData());
 });
 
-function sendToClient(data) {
-    return self.clients.matchAll().then(clients => {
-        const promises = clients.map(client =>
-            client.postMessage({
-                type: 'PUSH_DATA',
-                data: data
-            })
-        );
-        return Promise.all(promises);
-    });
-}
+//function sendToClient(data) {
+//    return self.clients.matchAll().then(clients => {
+//        const promises = clients.map(client =>
+//            client.postMessage({
+//                type: 'PUSH_DATA',
+//                data: data
+//            })
+//        );
+//        return Promise.all(promises);
+//    });
+//}
 
 self.addEventListener('message', async function (event) {
     if (event.data && event.data.type === 'SAVE_ENCRYPTION_KEY') {
@@ -291,11 +321,12 @@ async function saveEncryptionKeyToSW(privateKeyBase64) {
 async function getEncryptionKeyFromSW() {
     try {
         const cache = await caches.open('encryption-keys');
-        console.log(cache);
         const response = await cache.match('encryption-key');
-        console.log(response);
+
         if (response) {
             const data = await response.json();
+
+            console.log(data);
 
             // Импортируем приватный ключ
             const privateKeyBuffer = base64ToArrayBuffer(data.key);

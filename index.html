@@ -4,148 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebPush Test</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: system-ui, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            width: 100%;
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #333;
-            font-size: 24px;
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #555;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-
-            input:focus {
-                outline: none;
-                border-color: #007bff;
-            }
-
-        button {
-            width: 100%;
-            padding: 15px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-            button:hover {
-                background: #0056b3;
-            }
-
-            button:disabled {
-                background: #ccc;
-                cursor: not-allowed;
-            }
-
-        #status {
-            margin-top: 20px;
-            padding: 12px;
-            border-radius: 6px;
-            display: none;
-        }
-
-        .success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        #subscriptionData {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            display: none;
-        }
-
-        .data-item {
-            margin-bottom: 10px;
-        }
-
-        .data-label {
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: #495057;
-        }
-
-        .data-value {
-            background: white;
-            padding: 8px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 12px;
-            word-break: break-all;
-            border: 1px solid #dee2e6;
-        }
-
-        .copy-btn {
-            width: auto;
-            padding: 4px 8px;
-            font-size: 12px;
-            margin-top: 5px;
-            background: #6c757d;
-        }
-
-            .copy-btn:hover {
-                background: #545b62;
-            }
-    </style>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <script src="scripts/utils.js"></script>
+    <script src="scripts/encryptionService.js"></script>
+    <script src="scripts/pushDataLoader.js"></script>
+    <script src="scripts/pushSubscription.js"></script>
+    <script src="scripts/uiManager.js"></script>
+
     <div class="container">
         <h1>WebPush Тестирование</h1>
 
@@ -154,7 +21,7 @@
             <input type="text" id="publicKey" placeholder="Введите ваш VAPID публичный ключ">
         </div>
 
-        <button onclick="subscribe()" id="subscribeBtn">Подписаться на уведомления</button>
+        <button id="subscribeBtn">Подписаться на уведомления</button>
 
         <div id="status"></div>
 
@@ -163,22 +30,18 @@
             <div class="data-item">
                 <div class="data-label">Endpoint:</div>
                 <div class="data-value" id="endpoint"></div>
-                <button class="copy-btn" onclick="copyToClipboard('endpoint')">Копировать</button>
             </div>
             <div class="data-item">
                 <div class="data-label">P256DH Key:</div>
                 <div class="data-value" id="p256dh"></div>
-                <button class="copy-btn" onclick="copyToClipboard('p256dh')">Копировать</button>
             </div>
             <div class="data-item">
                 <div class="data-label">Auth Key:</div>
                 <div class="data-value" id="auth"></div>
-                <button class="copy-btn" onclick="copyToClipboard('auth')">Копировать</button>
             </div>
             <div class="data-item">
                 <div class="data-label">Ключ шифрования:</div>
                 <div class="data-value" id="encryptionKey"></div>
-                <button class="copy-btn" onclick="copyToClipboard('encryptionKey')">Копировать</button>
             </div>
         </div>
 
@@ -186,409 +49,33 @@
     </div>
 
     <script>
-        // Функция для получения параметров пуша при загрузке страницы
-        async function loadPushData() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const pushId = urlParams.get('pushId');
-
-            if (pushId) {
-                try {
-                    // Получаем данные из кеша Service Worker
-                    const pushData = await getPushDataFromSW(pushId);
-                    if (pushData) {
-                        displayJsonData(pushData);
-                        console.log('Push data loaded:', pushData);
-                    } else {
-                        console.log('No push data found for ID:', pushId);
-                        displayJsonData({ error: 'Данные пуша не найдены' });
-                    }
-                } catch (error) {
-                    console.error('Error loading push data:', error);
-                    displayJsonData({ error: 'Ошибка загрузки данных' });
-                }
-            } else {
-                console.log('No push ID in URL');
-                displayJsonData({ message: 'Откройте страницу через push-уведомление для просмотра параметров' });
-            }
-        }
-
-        // Запрос данных из Service Worker
-        async function getPushDataFromSW(pushId) {
-            return new Promise((resolve) => {
-                if (!navigator.serviceWorker.controller) {
-                    resolve(null);
-                    return;
-                }
-
-                const messageChannel = new MessageChannel();
-                messageChannel.port1.onmessage = (event) => {
-                    resolve(event.data);
-                };
-
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'GET_PUSH_DATA',
-                    pushId: pushId
-                }, [messageChannel.port2]);
-            });
-        }
-
-        // Обновленная функция отображения данных
-        function displayJsonData(data) {
-            const outputElement = document.getElementById('json-output');
-
-            if (!outputElement) {
-                console.error('Output element not found');
-                return;
-            }
-
-            if (!data || Object.keys(data).length === 0) {
-                outputElement.innerHTML = '<p>Нет данных для отображения</p>';
-                return;
-            }
-
-            let html = '<h3>Параметры пуша:</h3>';
-
-            try {
-                for (const [key, value] of Object.entries(data)) {
-                    const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-                    html += `<div class="data-item">
-                        <div class="data-label">${key}:</div>
-                        <div class="data-value">${displayValue}</div>
-                     </div>`;
-                }
-            } catch (error) {
-                html = `<p>Ошибка отображения данных: ${error.message}</p>`;
-            }
-
-            outputElement.innerHTML = html;
-        }
-
-        // Глобальная переменная для хранения ключа шифрования
-        let encryptionKey = null;
-
-        // Получаем сообщения от Service Worker
-        navigator.serviceWorker.addEventListener('message', function (event) {
-            if (event.data && event.data.type === 'PUSH_DATA') {
-                displayJsonData(event.data.data);
-            }
-        });
-
-        // Функция для отображения данных на странице
-        function displayJsonData(data) {
-            const outputElement = document.getElementById('json-output');
-
-            if (!data || Object.keys(data).length === 0) {
-                outputElement.innerHTML = '<p>Нет данных</p>';
-                return;
-            }
-
-            let html = '';
-            for (const [key, value] of Object.entries(data)) {
-                html += `<div class="data-row">
-                            <span class="param">${key}:</span>
-                            <span class="value">${value}</span>
-                         </div>`;
-            }
-
-            outputElement.innerHTML = html;
-        }
-
-        // Конвертация Base64 ключа в Uint8Array
-        function urlBase64ToUint8Array(base64String) {
-            const padding = '='.repeat((4 - base64String.length % 4) % 4);
-            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-            const rawData = atob(base64);
-            return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
-        }
-
-        // Генерация ключа шифрования
-        async function generateEncryptionKey() {
-            try {
-                const keyPair = await crypto.subtle.generateKey(
-                    {
-                        name: "RSA-OAEP",
-                        modulusLength: 2048,
-                        publicExponent: new Uint8Array([1, 0, 1]), // 65537
-                        hash: { name: "SHA-1" } // Совпадает с C#
-                    },
-                    true,
-                    ["encrypt", "decrypt"]
-                );
-
-                // Экспортируем приватный ключ в формате PKCS#8
-                const privateKey = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
-                const privateKeyBase64 = arrayBufferToBase64(privateKey);
-
-                // Экспортируем публичный ключ в формате SPKI
-                const publicKey = await crypto.subtle.exportKey("spki", keyPair.publicKey);
-                const publicKeyBase64 = arrayBufferToBase64(publicKey);
-
-                // Сохраняем ключи
-                encryptionKey = keyPair.privateKey;
-                localStorage.setItem('webpush_private_key', privateKeyBase64);
-                localStorage.setItem('webpush_public_key', publicKeyBase64);
-
-                console.log('RSA key pair generated');
-                return publicKeyBase64; // Возвращаем публичный ключ для шифрования
-            } catch (error) {
-                console.error('Ошибка генерации ключа:', error);
-                throw error;
-            }
-        }
-
         // Загружаем данные при загрузке страницы
         document.addEventListener('DOMContentLoaded', function () {
-            loadPushData();
+            pushDataLoader.loadPushData();
 
-            // Авторегистрация Service Worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => {
-                        console.log('SW готов');
-                        return loadEncryptionKey();
-                    })
-                    .then(key => {
-                        if (key) {
-                            console.log('Ключ шифрования загружен');
-                        }
-                    })
-                    .catch(err => console.error('Ошибка SW:', err));
-            }
+            uiManager.initEventListeners();
+
+            // Загружаем ключ шифрования
+            encryptionService.loadEncryptionKey().then(key => {
+                if (key) {
+                    console.log('Ключ шифрования загружен из localStorage');
+                }
+            });
+
+            //// Авторегистрация Service Worker
+            //if ('serviceWorker' in navigator) {
+            //    navigator.serviceWorker.register('./scripts/sw.js')
+            //        .then(reg => console.log('SW готов'))
+            //        .catch(err => console.error('Ошибка SW:', err));
+            //}
+
+            // Обработчик сообщений от Service Worker
+            navigator.serviceWorker.addEventListener('message', function (event) {
+                if (event.data && event.data.type === 'PUSH_DATA') {
+                    pushDataLoader.displayJsonData(event.data.data);
+                }
+            });
         });
-
-        // Загрузка ключа из localStorage
-        async function loadEncryptionKey() {
-            try {
-                const privateKeyBase64 = localStorage.getItem('webpush_private_key');
-                if (!privateKeyBase64) return null;
-
-                const privateKeyBuffer = base64ToArrayBuffer(privateKeyBase64);
-                const privateKey = await crypto.subtle.importKey(
-                    "pkcs8",
-                    privateKeyBuffer,
-                    {
-                        name: "RSA-OAEP",
-                        hash: { name: "SHA-1" }
-                    },
-                    true,
-                    ["decrypt"]
-                );
-
-                encryptionKey = privateKey;
-                console.log('Private key loaded from localStorage');
-                return privateKeyBase64;
-
-            } catch (error) {
-                console.error('Ошибка загрузки приватного ключа:', error);
-                return null;
-            }
-        }
-
-        // Расшифровка данных
-        async function decryptData(encryptedDataBase64, ivBase64) {
-            if (!encryptionKey) {
-                throw new Error('Ключ шифрования не найден');
-            }
-
-            try {
-                const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
-                const iv = base64ToArrayBuffer(ivBase64);
-
-                const decrypted = await crypto.subtle.decrypt(
-                    {
-                        name: "AES-GCM",
-                        iv: iv
-                    },
-                    encryptionKey,
-                    encryptedData
-                );
-
-                return new TextDecoder().decode(decrypted);
-            } catch (error) {
-                console.error('Ошибка расшифровки:', error);
-                throw error;
-            }
-        }
-
-        // Основная функция подписки
-        async function subscribe() {
-            const publicKey = document.getElementById('publicKey').value.trim();
-            const btn = document.getElementById('subscribeBtn');
-            const status = document.getElementById('status');
-
-            // Валидация
-            if (!publicKey) {
-                showStatus('Введите VAPID публичный ключ', 'error');
-                return;
-            }
-
-            // Проверка поддержки браузером
-            if (!('serviceWorker' in navigator)) {
-                showStatus('Браузер не поддерживает Service Worker', 'error');
-                return;
-            }
-
-            if (!('PushManager' in window)) {
-                showStatus('Браузер не поддерживает Push уведомления', 'error');
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = 'Подписываем...';
-
-            try {
-                // Регистрируем Service Worker
-                const registration = await navigator.serviceWorker.register('./sw.js');
-                console.log('Service Worker зарегистрирован');
-
-                // Запрашиваем разрешение
-                const permission = await Notification.requestPermission();
-                if (permission !== 'granted') {
-                    showStatus('Разрешение на уведомления не получено', 'error');
-                    btn.disabled = false;
-                    btn.textContent = 'Подписаться на уведомления';
-                    return;
-                }
-
-                // Ждем пока SW активируется
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // Генерируем ключ шифрования
-                const encryptionKeyBase64 = await generateEncryptionKey();
-                console.log('Ключ шифрования сгенерирован:', encryptionKeyBase64);
-
-                // Сохраняем ключ в Service Worker
-                await saveEncryptionKeyToSW(encryptionKeyBase64, registration);
-
-                // Создаем подписку
-                const subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(publicKey)
-                });
-
-                // Показываем успех и данные подписки
-                showStatus('✅ Подписка успешно создана!', 'success');
-                showSubscriptionData(subscription, encryptionKeyBase64);
-
-            } catch (error) {
-                console.error('Ошибка:', error);
-                showStatus('Ошибка: ' + error.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Подписаться на уведомления';
-            }
-        }
-
-        // Показать статус
-        function showStatus(message, type) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.className = type;
-            status.style.display = 'block';
-        }
-
-        // Показать данные подписки
-        function showSubscriptionData(subscription, publicKeyBase64) {
-            const dataContainer = document.getElementById('subscriptionData');
-
-            try {
-                // Endpoint
-                document.getElementById('endpoint').textContent = subscription.endpoint;
-
-                // Ключи
-                let p256dhKey = 'Не доступен';
-                let authKey = 'Не доступен';
-
-                if (subscription.getKey) {
-                    const p256dhBuffer = subscription.getKey('p256dh');
-                    const authBuffer = subscription.getKey('auth');
-
-                    if (p256dhBuffer) p256dhKey = arrayBufferToBase64(p256dhBuffer);
-                    if (authBuffer) authKey = arrayBufferToBase64(authBuffer);
-                }
-
-                document.getElementById('p256dh').textContent = p256dhKey;
-                document.getElementById('auth').textContent = authKey;
-                document.getElementById('encryptionKey').textContent = publicKeyBase64;
-
-                dataContainer.style.display = 'block';
-
-            } catch (error) {
-                console.error('Ошибка отображения данных:', error);
-            }
-        }
-
-        // Конвертация ArrayBuffer в Base64
-        function arrayBufferToBase64(buffer) {
-            const bytes = new Uint8Array(buffer);
-            let binary = '';
-            for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            return btoa(binary);
-        }
-
-        // Конвертация Base64 в ArrayBuffer
-        function base64ToArrayBuffer(base64) {
-            const binary = atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
-            return bytes;
-        }
-
-        // Копирование в буфер обмена
-        function copyToClipboard(elementId) {
-            const element = document.getElementById(elementId);
-            const text = element.textContent;
-
-            navigator.clipboard.writeText(text).then(() => {
-                showStatus('Скопировано в буфер обмена!', 'success');
-            }).catch(err => {
-                showStatus('Ошибка копирования: ' + err, 'error');
-            });
-        }
-
-        // Авторегистрация Service Worker при загрузке
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => {
-                    console.log('SW готов');
-                    // Загружаем ключ шифрования при загрузке страницы
-                    return loadEncryptionKey();
-                })
-                .then(key => {
-                    if (key) {
-                        console.log('Ключ шифрования загружен из localStorage');
-                    }
-                })
-                .catch(err => console.error('Ошибка SW:', err));
-        }
-
-        // Новая функция для сохранения ключа в SW
-        async function saveEncryptionKeyToSW(keyBase64, registration) {
-            return new Promise((resolve, reject) => {
-                if (!registration.active) {
-                    reject(new Error('Service Worker не активен'));
-                    return;
-                }
-
-                const messageChannel = new MessageChannel();
-                messageChannel.port1.onmessage = (event) => {
-                    if (event.data.success) {
-                        resolve();
-                    } else {
-                        reject(new Error('Не удалось сохранить ключ в SW'));
-                    }
-                };
-
-                registration.active.postMessage({
-                    type: 'SAVE_ENCRYPTION_KEY',
-                    key: keyBase64
-                }, [messageChannel.port2]);
-            });
-        }
     </script>
 </body>
 </html>
