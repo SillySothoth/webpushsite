@@ -51,8 +51,8 @@
     <script>
         // Загружаем данные при загрузке страницы
         document.addEventListener('DOMContentLoaded', function () {
-            pushDataLoader.loadPushData();
 
+            pushDataLoader.loadPushData();
             uiManager.initEventListeners();
 
             // Загружаем ключ шифрования
@@ -62,19 +62,12 @@
                 }
             });
 
-            //// Авторегистрация Service Worker
-            //if ('serviceWorker' in navigator) {
-            //    navigator.serviceWorker.register('./scripts/sw.js')
-            //        .then(reg => console.log('SW готов'))
-            //        .catch(err => console.error('Ошибка SW:', err));
-            //}
-
-            // Обработчик сообщений от Service Worker
-            navigator.serviceWorker.addEventListener('message', function (event) {
-                if (event.data && event.data.type === 'PUSH_DATA') {
-                    pushDataLoader.displayJsonData(event.data.data);
-                }
-            });
+            // Авторегистрация Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('SW готов'))
+                    .catch(err => console.error('Ошибка SW:', err));
+            }
         });
     </script>
 </body>

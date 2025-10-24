@@ -3,7 +3,7 @@ class UIManager {
         this.pushSubscriptionManager = pushSubscriptionManager;
     }
 
-    // Показать статус
+    // Отображение статуса
     showStatus(message, type) {
         const status = document.getElementById('status');
         status.textContent = message;
@@ -18,7 +18,7 @@ class UIManager {
         }
     }
 
-    // Показать данные подписки
+    // Отображение данных подписки
     showSubscriptionData(subscription, publicKeyBase64) {
         const dataContainer = document.getElementById('subscriptionData');
 

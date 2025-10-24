@@ -3,7 +3,7 @@ class EncryptionService {
         this.encryptionKey = null;
     }
 
-    // Генерация ключа шифрования
+    // Генерация ключей шифрования
     async generateEncryptionKey() {
         try {
             const keyPair = await window.crypto.subtle.generateKey(
@@ -16,7 +16,6 @@ class EncryptionService {
                 true,
                 ["encrypt", "decrypt"]
             );
-
 
             // Экспортируем приватный ключ
             const privateKey = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
@@ -31,7 +30,7 @@ class EncryptionService {
             localStorage.setItem('webpush_private_key', privateKeyBase64);
             localStorage.setItem('webpush_public_key', publicKeyBase64);
 
-            console.log('RSA key pair generated');
+            console.log('key pair generated');
             var keys = new Object;
             keys.public = publicKeyBase64;
             keys.private = privateKeyBase64;
@@ -43,7 +42,7 @@ class EncryptionService {
         }
     }
 
-    // Загрузка ключа из localStorage
+    // Загрузка ключа
     async loadEncryptionKey() {
         try {
             const privateKeyBase64 = localStorage.getItem('webpush_private_key');
@@ -62,38 +61,12 @@ class EncryptionService {
             );
 
             this.encryptionKey = privateKey;
-            console.log('Private key loaded from localStorage');
+            console.log('Private key loaded');
             return privateKeyBase64;
 
         } catch (error) {
             console.error('Ошибка загрузки приватного ключа:', error);
             return null;
-        }
-    }
-
-    // Расшифровка данных
-    async decryptData(encryptedDataBase64, ivBase64) {
-        if (!this.encryptionKey) {
-            throw new Error('Ключ шифрования не найден');
-        }
-
-        try {
-            const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
-            const iv = base64ToArrayBuffer(ivBase64);
-
-            const decrypted = await crypto.subtle.decrypt(
-                {
-                    name: "AES-GCM",
-                    iv: iv
-                },
-                this.encryptionKey,
-                encryptedData
-            );
-
-            return new TextDecoder().decode(decrypted);
-        } catch (error) {
-            console.error('Ошибка расшифровки:', error);
-            throw error;
         }
     }
 

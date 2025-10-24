@@ -3,7 +3,7 @@
         this.encryptionService = encryptionService;
     }
 
-    // Основная функция подписки
+    // Функция подписки
     async subscribe() {
         const publicKey = document.getElementById('publicKey').value.trim();
         const btn = document.getElementById('subscribeBtn');
@@ -31,7 +31,6 @@
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
                 uiManager.showStatus('Разрешение на уведомления не получено', 'error');
-                this.resetButton(btn);
                 return;
             }
 
@@ -45,6 +44,7 @@
 
             // Сохраняем ключ в Service Worker
             await this.encryptionService.saveEncryptionKeyToSW(keys.private, registration);
+            console.log('Ключ шифрования сохранен');
 
             // Создаем подписку
             const subscription = await registration.pushManager.subscribe({
@@ -58,7 +58,15 @@
 
         } catch (error) {
             console.error('Ошибка:', error);
-            uiManager.showStatus('Ошибка: ' + error.message, 'error');
+
+            let errorMessage = 'Ошибка: ' + error.message;
+            if (error.message.includes('applicationServerKey is not valid')) {
+                errorMessage = 'Неверный VAPID публичный ключ. Проверьте формат ключа.';
+            } else if (error.message.includes('subscription failed')) {
+                errorMessage = 'Ошибка подписки. Проверьте VAPID ключ и поддержку браузером.';
+            }
+
+            uiManager.showStatus('Ошибка: ' + errorMessage, 'error');
         } finally {
             this.resetButton(btn);
         }
@@ -79,7 +87,7 @@
         return true;
     }
 
-    // Сброс кнопки
+    // Сброс кнопки к начальному состоянию
     resetButton(btn) {
         btn.disabled = false;
         btn.textContent = 'Подписаться на уведомления';

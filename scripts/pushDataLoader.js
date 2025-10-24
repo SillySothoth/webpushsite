@@ -1,5 +1,5 @@
 ﻿class PushDataLoader {
-    // Функция для получения параметров пуша при загрузке страницы
+    // Получение параметров пуша при загрузке страницы
     async loadPushData() {
         const urlParams = new URLSearchParams(window.location.search);
         const pushId = urlParams.get('pushId');

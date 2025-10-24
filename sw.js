@@ -1,4 +1,4 @@
-// Простой Service Worker для обработки push-уведомлений
+// Service Worker для обработки push-уведомлений
 self.addEventListener('push', function (event) {
     event.waitUntil(
         (async function () {
@@ -72,7 +72,7 @@ async function getPushData(pushId) {
     return null;
 }
 
-// Функция для обработки зашифрованных параметров
+// Обработка зашифрованных параметров
 async function processEncryptedParameters(data) {
     const result = { ...data };
 
@@ -112,7 +112,6 @@ async function processEncryptedParameters(data) {
                 }
             }
         }
-        console.log('Decryption completed. Final data:', result);
     } catch (error) {
         console.error('Ошибка обработки зашифрованных параметров:', error);
     }
@@ -120,32 +119,7 @@ async function processEncryptedParameters(data) {
     return result;
 }
 
-// Новая функция для RSA дешифровки
-async function decryptRSA(encryptedDataBase64, privateKey) {
-    try {
-        console.log('Decrypting data with key length:', encryptionKeyBase64.length);
-        // Конвертируем base64 в ArrayBuffer
-        const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
-
-        // Дешифруем с помощью RSA-OAEP
-        const decrypted = await crypto.subtle.decrypt(
-            {
-                name: "RSA-OAEP"
-            },
-            privateKey,
-            encryptedData
-        );
-
-        const result = new TextDecoder().decode(decrypted);
-        return result;
-
-    } catch (error) {
-        console.error('RSA decryption error:', error);
-        throw error;
-    }
-}
-
-// Новая функция дешифровки в SW
+// Дешифровка в SW
 async function decryptInSW(privateKey, encryptedData) {
     if (!privateKey) {
         throw new Error('Приватный ключ не предоставлен');
@@ -215,7 +189,7 @@ async function decryptInSW(privateKey, encryptedData) {
     //}
 }
 
-// Вспомогательная функция для SW
+// Конвертация Base64 в ArrayBuffer
 function base64ToArrayBuffer(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -225,6 +199,7 @@ function base64ToArrayBuffer(base64) {
     return bytes;
 }
 
+// Клик по пушу
 self.addEventListener('notificationclick', function (event) {
     event.notification.close();
 
@@ -261,26 +236,10 @@ async function cleanupOldPushData() {
     }
 }
 
-self.addEventListener('pushsubscriptionchange', function (event) {
-    console.log('Подписка изменена:', event);
-});
-
 // Запускаем очистку при активации SW
 self.addEventListener('activate', function (event) {
     event.waitUntil(cleanupOldPushData());
 });
-
-//function sendToClient(data) {
-//    return self.clients.matchAll().then(clients => {
-//        const promises = clients.map(client =>
-//            client.postMessage({
-//                type: 'PUSH_DATA',
-//                data: data
-//            })
-//        );
-//        return Promise.all(promises);
-//    });
-//}
 
 self.addEventListener('message', async function (event) {
     if (event.data && event.data.type === 'SAVE_ENCRYPTION_KEY') {
@@ -325,8 +284,6 @@ async function getEncryptionKeyFromSW() {
 
         if (response) {
             const data = await response.json();
-
-            console.log(data);
 
             // Импортируем приватный ключ
             const privateKeyBuffer = base64ToArrayBuffer(data.key);

@@ -124,15 +124,3 @@ button {
     word-break: break-all;
     border: 1px solid #dee2e6;
 }
-
-.copy-btn {
-    width: auto;
-    padding: 4px 8px;
-    font-size: 12px;
-    margin-top: 5px;
-    background: #6c757d;
-}
-
-.copy-btn:hover {
-    background: #545b62;
-}
