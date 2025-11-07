@@ -61,12 +61,41 @@
 
         try {
             for (const [key, value] of Object.entries(data)) {
-                const displayValue = typeof value === 'object' ?
-                    JSON.stringify(value, null, 2) : String(value);
+                let displayValue;
+
+                if (key === 'data' && typeof value === 'string') {
+                    try {
+                        // Первый парсинг - убираем экранирование
+                        const firstParse = JSON.parse(value);
+                        // Второй парсинг - если результат тоже JSON строка
+                        if (typeof firstParse === 'string') {
+                            const secondParse = JSON.parse(firstParse);
+                            displayValue = JSON.stringify(secondParse, null, 2);
+                        } else {
+                            displayValue = JSON.stringify(firstParse, null, 2);
+                        }
+                    } catch (e) {
+                        // Если не получается распарсить, показываем как есть
+                        displayValue = String(value);
+                    }
+                } else if (typeof value === 'object' && value !== null) {
+                    displayValue = JSON.stringify(value, null, 2);
+                } else if (typeof value === 'string') {
+                    // Для других строк пробуем распарсить как JSON
+                    try {
+                        const parsed = JSON.parse(value);
+                        displayValue = JSON.stringify(parsed, null, 2);
+                    } catch (e) {
+                        displayValue = String(value);
+                    }
+                } else {
+                    displayValue = String(value);
+                }
+
                 html += `<div class="data-item">
-                    <div class="data-label">${key}:</div>
-                    <div class="data-value">${displayValue}</div>
-                 </div>`;
+            <div class="data-label">${key}:</div>
+            <div class="data-value">${displayValue}</div>
+         </div>`;
             }
         } catch (error) {
             html = `<p>Ошибка отображения данных: ${error.message}</p>`;

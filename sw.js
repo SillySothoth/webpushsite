@@ -13,9 +13,21 @@ self.addEventListener('push', function (event) {
                 const decryptedData = await processEncryptedParameters(dataObj);
                 console.log('Decrypted push data:', decryptedData);
 
+                let title = decryptedData.title || data.title || 'WebPush Test';
+                let body = decryptedData.body || data.body || 'Тестовое уведомление';
+                // Заменяем параметры в title и body
+                processedTitle = replaceParametersInText(title, decryptedData);
+                processedBody = replaceParametersInText(body, decryptedData);
+
                 // Сохраняем УЖЕ РАСШИФРОВАННЫЕ данные
                 const pushData = {
-                    ...decryptedData, // используем расшифрованные данные
+                    originalData: data, // исходные зашифрованные данные
+                    decryptedParameters: decryptedData, // используем расшифрованные данные
+                    processedData: {              // обработанные данные (с подставленными параметрами)
+                        title: processedTitle,
+                        body: processedBody,
+                        url: decryptedData.Url
+                    },
                     timestamp: Date.now()
                 };
 
@@ -23,7 +35,8 @@ self.addEventListener('push', function (event) {
                 await savePushData(pushData);
 
                 const options = {
-                    body: decryptedData.body || data.body || 'Тестовое уведомление',
+                    body: processedBody,
+                    title: processedTitle,
                     icon: '/icon.png',
                     badge: '/badge.png',
                     vibrate: [200, 100, 200],
@@ -33,12 +46,7 @@ self.addEventListener('push', function (event) {
                     }
                 };
 
-                //await sendToClient(dataObj);
-
-                await self.registration.showNotification(
-                    decryptedData.title || data.title || 'WebPush Test',
-                    options
-                );
+                await self.registration.showNotification(processedTitle, options);
 
             } catch (error) {
                 console.error('Error in push event:', error);
@@ -150,43 +158,20 @@ async function decryptInSW(privateKey, encryptedData) {
         console.error('Ошибка дешифрования:', error);
         throw error;
     }
+}
 
-    //try {
-    //    console.log('Decrypting data with key length:', encryptionKeyBase64.length);
+// Функция для замены параметров в тексте
+function replaceParametersInText(text, decryptedData) {
+    if (!text || typeof text !== 'string') return text;
 
-    //    // Конвертируем base64 ключ в CryptoKey
-    //    const keyBuffer = base64ToArrayBuffer(encryptionKeyBase64);
-    //    const key = await crypto.subtle.importKey(
-    //        "raw",
-    //        keyBuffer,
-    //        {
-    //            name: "AES-GCM",
-    //            length: 256
-    //        },
-    //        true,
-    //        ["decrypt"]
-    //    );
-
-    //    // Дешифруем данные
-    //    const encryptedData = base64ToArrayBuffer(encryptedDataBase64);
-    //    const iv = base64ToArrayBuffer(ivBase64);
-
-    //    const decrypted = await crypto.subtle.decrypt(
-    //        {
-    //            name: "AES-GCM",
-    //            iv: iv
-    //        },
-    //        key,
-    //        encryptedData
-    //    );
-
-    //    const result = new TextDecoder().decode(decrypted);
-    //    console.log('Decryption successful, result:', result);
-    //    return result;
-    //} catch (error) {
-    //    console.error('Error decrypting in SW:', error);
-    //    throw new Error(`Decryption failed: ${error.message}`);
-    //}
+    return text.replace(/##(\w+)##/g, (match, paramName) => {
+        // Ищем значение параметра в расшифрованных данных
+        if (decryptedData.hasOwnProperty(paramName)) {
+            return decryptedData[paramName];
+        }
+        // Если параметр не найден, оставляем оригинальный текст
+        return match;
+    });
 }
 
 // Конвертация Base64 в ArrayBuffer
